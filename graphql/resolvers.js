@@ -86,6 +86,104 @@ const resolvers = {
       }
     }
   },
+
+  Mutation: {
+    async signup(_, { username, email, password }) {
+      try {
+        // Check if user already exists
+        const existingUser = await User.findOne({
+          $or: [{ username }, { email }]
+        });
+
+        if (existingUser) {
+          throw new UserInputError('Username or email already taken');
+        }
+
+        const newUser = new User({
+          username,
+          email,
+          password
+        });
+
+        const savedUser = await newUser.save();
+        
+        const token = generateToken(savedUser);
+
+        return {
+          token,
+          user: savedUser
+        };
+      } catch (error) {
+        throw new Error(error.message);
+      }
+    },
+
+    async addEmployee(_, args, context) {
+    
+      try {
+        const existingEmployee = await Employee.findOne({ email: args.email });
+        if (existingEmployee) {
+          throw new UserInputError('Employee with this email already exists');
+        }
+        
+        const newEmployee = new Employee({
+          ...args,
+          date_of_joining: new Date(args.date_of_joining)
+        });
+        
+        const savedEmployee = await newEmployee.save();
+        return savedEmployee;
+      } catch (error) {
+        throw new Error(error.message);
+      }
+    },
+
+    async updateEmployee(_, { id, ...updates }, context) {
+      
+      try {
+        const employee = await Employee.findById(id);
+        if (!employee) {
+          throw new Error('Employee not found');
+        }
+        
+        if (updates.email && updates.email !== employee.email) {
+          const existingEmail = await Employee.findOne({ email: updates.email });
+          if (existingEmail) {
+            throw new UserInputError('Email already in use by another employee');
+          }
+        }
+        
+        if (updates.date_of_joining) {
+          updates.date_of_joining = new Date(updates.date_of_joining);
+        }
+        
+        const updatedEmployee = await Employee.findByIdAndUpdate(
+          id,
+          { $set: updates },
+          { new: true, runValidators: true }
+        );
+        
+        return updatedEmployee;
+      } catch (error) {
+        throw new Error(error.message);
+      }
+    },
+
+    async deleteEmployee(_, { id }, context) {
+    
+      try {
+        const employee = await Employee.findById(id);
+        if (!employee) {
+          throw new Error('Employee not found');
+        }
+        
+        await Employee.findByIdAndDelete(id);
+        return true;
+      } catch (error) {
+        throw new Error(error.message);
+      }
+    }
+  }
 };
 
 module.exports = resolvers;
